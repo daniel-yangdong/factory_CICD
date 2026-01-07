@@ -1,6 +1,11 @@
 pipeline {
     agent any
 
+    options {
+        cleanBeforeCheckout()
+        buildDiscarder(logRotator(numToKeepStr: '5'))
+    }
+
     parameters {
         string(name: 'SERVER_SN', defaultValue: '', description: 'Serial Number')
         string(name: 'TARGET_IP', defaultValue: '', description: 'Target Server IP')
@@ -10,16 +15,19 @@ pipeline {
     stages {
         stage('Deploy Diag Agent to Target') {
             steps {
-                sh '''
-                # 拷贝所有必要文件到目标机
-                scp -r diag-agent/ diag-scripts/ scripts/ root@${TARGET_IP}:/opt/
-                ssh root@${TARGET_IP} "chmod +x /opt/scripts/setup_agent.sh"
-                ssh root@${TARGET_IP} "/opt/scripts/setup_agent.sh"
-                ssh root@${TARGET_IP} "systemctl stop diag-agent || true"
-                ssh root@${TARGET_IP} "systemctl start diag-agent"
-                '''
+                script {
+                    sshagent(['aliyun-cloud-server']) {
+                        sh '''
+                        # 拷贝所有必要文件到目标机
+                        scp -r diag-agent/ diag-scripts/ scripts/ root@${TARGET_IP}:/opt/
+                        ssh root@${TARGET_IP} "chmod +x /opt/scripts/setup_agent.sh"
+                        ssh root@${TARGET_IP} "/opt/scripts/setup_agent.sh"
+                        '''
+                    }
+                }
             }
         }
+
         stage('Validate Input') {
             steps {
                 script {
@@ -81,7 +89,4 @@ pipeline {
             // 可加邮件通知：emailext body: "...", subject: "...", recipientProviders: [...]
         }
     }
-
 }
-
-
