@@ -12,7 +12,7 @@ pipeline {
             steps {
                 sh '''
                 # 拷贝所有必要文件到目标机
-                scp -r diag-agent/ diag-scripts/ root@${TARGET_IP}:/opt/
+                scp -r diag-agent/ diag-scripts/ ubuntu@${TARGET_IP}:/opt/
                 ssh root@${TARGET_IP} "systemctl stop diag-agent || true"
                 ssh root@${TARGET_IP} "systemctl start diag-agent"
                 '''
@@ -79,4 +79,5 @@ pipeline {
             // 可加邮件通知：emailext body: "...", subject: "...", recipientProviders: [...]
         }
     }
+
 }
