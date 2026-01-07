@@ -12,7 +12,9 @@ pipeline {
             steps {
                 sh '''
                 # 拷贝所有必要文件到目标机
-                scp -r diag-agent/ diag-scripts/ scripts/ ubuntu@${TARGET_IP}:/opt/
+                scp -r diag-agent/ diag-scripts/ scripts/ root@${TARGET_IP}:/opt/
+                ssh root@${TARGET_IP} "chmod +x /opt/scripts/setup_agent.sh"
+                ssh root@${TARGET_IP} "/opt/scripts/setup_agent.sh"
                 ssh root@${TARGET_IP} "systemctl stop diag-agent || true"
                 ssh root@${TARGET_IP} "systemctl start diag-agent"
                 '''
@@ -81,4 +83,5 @@ pipeline {
     }
 
 }
+
 
