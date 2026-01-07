@@ -1,0 +1,82 @@
+pipeline {
+    agent any
+
+    parameters {
+        string(name: 'SERVER_SN', defaultValue: '', description: 'Serial Number')
+        string(name: 'TARGET_IP', defaultValue: '', description: 'Target Server IP')
+        string(name: 'TEST_MODULES', defaultValue: 'cpu mem net storage', description: 'Modules to test (space-separated)')
+    }
+
+    stages {
+        stage('Deploy Diag Agent to Target') {
+            steps {
+                sh '''
+                # 拷贝所有必要文件到目标机
+                scp -r diag-agent/ diag-scripts/ root@${TARGET_IP}:/opt/
+                ssh root@${TARGET_IP} "systemctl stop diag-agent || true"
+                ssh root@${TARGET_IP} "systemctl start diag-agent"
+                '''
+            }
+        }
+        stage('Validate Input') {
+            steps {
+                script {
+                    if (params.SERVER_SN.trim().isEmpty() || params.TARGET_IP.trim().isEmpty()) {
+                        error "SERVER_SN and TARGET_IP must be provided!"
+                    }
+                }
+            }
+        }
+
+        stage('Run Diagnostics via REST API') {
+            steps {
+                script {
+                    def modules = params.TEST_MODULES.split()
+                    def cmd = """
+                        cd ${WORKSPACE}/jenkins-diag-controller &&
+                        python3 run_diag.py --ip ${params.TARGET_IP} --sn ${params.SERVER_SN} ${modules.join(' ')}
+                    """
+                    sh cmd
+                }
+            }
+        }
+
+        stage('Archive Results') {
+            steps {
+                archiveArtifacts artifacts: "**/diag_result_${params.SERVER_SN}.json", allowEmptyArchive: false
+                // 如果需要拉取日志包（可选）
+                // sh "scp root@${params.TARGET_IP}:/var/log/diag_${params.SERVER_SN}_*.tar.gz . || true"
+                // archiveArtifacts artifacts: "*.tar.gz", allowEmptyArchive: true
+            }
+        }
+
+        stage('Check Result') {
+            steps {
+                script {
+                    def resultFile = "jenkins-diag-controller/diag_result_${params.SERVER_SN}.json"
+                    if (!fileExists(resultFile)) {
+                        error "Result file not found!"
+                    }
+                    def json = readJSON file: resultFile
+                    if (json.overall != "PASS") {
+                        error "Diag test FAILED for SN=${params.SERVER_SN}"
+                    }
+                    echo "✅ Diag PASSED for ${params.SERVER_SN}"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()  // 清理工作区
+        }
+        success {
+            echo "Test succeeded. Ready for next station."
+        }
+        failure {
+            echo "Test failed. Notify engineer."
+            // 可加邮件通知：emailext body: "...", subject: "...", recipientProviders: [...]
+        }
+    }
+}

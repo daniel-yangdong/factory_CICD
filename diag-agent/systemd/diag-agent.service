@@ -1,0 +1,13 @@
+[Unit]
+Description=Diag Agent REST Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/diag-agent
+ExecStart=/usr/bin/python3 /opt/diag-agent/app.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
